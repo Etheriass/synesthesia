@@ -9,14 +9,15 @@ template <typename T>
 inline T clamp(T v, T lo, T hi) { return std::max(lo, std::min(hi, v)); }
 
 // Compute energies of two signals: sum of squares
-inline std::pair<double, double> energy(const float* L, const float* R, int N) {
+inline void energy(const float* L, const float* R, int N, double* outL2, double* outR2) {
     double L2 = 0.0, R2 = 0.0;
     for (int n = 0; n < N; ++n) {
         double l = L[n], r = R[n];
         L2 += l * l;
         R2 += r * r;
     }
-    return {L2, R2};
+    *outL2 = L2;
+    *outR2 = R2;
 }
 
 inline double azimuth_from_ild_itd(double ILD_dB, double ITD_sec) {

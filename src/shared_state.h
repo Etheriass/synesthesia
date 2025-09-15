@@ -5,7 +5,7 @@
 #include <atomic>
 #include <GLFW/glfw3.h>
 
-#include "circle.h"
+#include "visual/circle.h"
 
 struct SharedState {
     std::vector<Circle> circles;
@@ -14,10 +14,8 @@ struct SharedState {
 };
 
 // Thread-safe helper to add a circle to shared state
-static inline void add_circle_shared(SharedState *shared, float ux, float uy, float radius = 0.05f, float falloff = 1.4f, float intensity = 1.0f)
+inline void add_circle_shared(SharedState *shared, float ux, float uy, float radius = 0.05f, float falloff = 1.4f, float intensity = 1.0f)
 {
-    if (!shared)
-        return;
     Circle c;
     c.x = ux;
     c.y = uy;

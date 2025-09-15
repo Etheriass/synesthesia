@@ -1,19 +1,24 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <iostream>
+#include <filesystem>
 
-#include "draw.h"
+#include "visual.h"
 #include "init.h"
 #include "loader.h"
 #include "circle.h"
-#include "shared_state.h"
+#include "../shared_state.h"
 
-void drawing_thread(SharedState *shared)
+void visual_thread(SharedState *shared)
 {
     GLFWwindow *win = init_window();
 
+    // actual pwd
+    std::cout << std::filesystem::current_path() << std::endl;
+
     GLuint prog = LoadShaderProgram(
-        "../include/shaders/circle.vert",
-        "../include/shaders/circle.frag");
+        "src/shaders/circle.vert",
+        "src/shaders/circle.frag");
 
     GLuint vao = 0;
     glGenVertexArrays(1, &vao);

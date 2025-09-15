@@ -1,5 +1,5 @@
 add_library(visualizer_lib
-  draw.cpp
+  visual.cpp
 )
 
 target_sources(visualizer_lib
@@ -8,10 +8,9 @@ target_sources(visualizer_lib
     BASE_DIRS ${CMAKE_CURRENT_LIST_DIR}
     FILES
       circle.h
-      draw.h
+      visual.h
       init.h
       loader.h
-      shared_state.h
 )
 
 # Public include path for headers
