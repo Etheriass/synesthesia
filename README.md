@@ -1,12 +1,18 @@
 # Synesthesia
+Project aiming to visualize sounds.
 
+This program run two threads and one process:
+- one thread to decode an mp3 file and store the decoded bytes.
+- one process to play the decoded bytes.
+- one thread creating the visual.
 
 ## Requirements
 
 ### Audio
-This project uses miniaudio, which is included in the `external` folder.
+Audio is done using miniaudio, which is included in the `external` folder.
 
 ### Visual
+Visual is done using OpenGL version 4.6 with GLFW and GLAD.
 
 ```bash
 sudo apt update
@@ -22,7 +28,7 @@ mkdir build
 cd build
 cmake ..
 make -j10
-DRI_PRIME=1  ./opengl_demo
+DRI_PRIME=1  ./src/synesthesia piano_2.mp3
 ```
 
 
