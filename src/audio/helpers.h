@@ -11,20 +11,20 @@
 
 #define INT16_MAX_FLOAT 32768.0f // 2^15
 
-// std::vector<uint8_t> read_binary(const std::string &path)
-// {
-//     std::ifstream f(path, std::ios::binary);
-//     if (!f)
-//         std::cerr << "Cannot open: " + path << '\n';
-//     f.seekg(0, std::ios::end);
-//     size_t len = (size_t)f.tellg();
-//     f.seekg(0, std::ios::beg);
+std::vector<uint8_t> read_binary(const std::string &path)
+{
+    std::ifstream f(path, std::ios::binary);
+    if (!f)
+        std::cerr << "Cannot open: " + path << '\n';
+    f.seekg(0, std::ios::end);
+    size_t len = (size_t)f.tellg();
+    f.seekg(0, std::ios::beg);
 
-//     std::vector<uint8_t> data(len);
-//     if (len && !f.read((char *)data.data(), (std::streamsize)len))
-//         std::cerr << "Read failed" + path << '\n';
-//     return data;
-// }
+    std::vector<uint8_t> data(len);
+    if (len && !f.read((char *)data.data(), (std::streamsize)len))
+        std::cerr << "Read failed" + path << '\n';
+    return data;
+}
 
 inline double db10(double x)
 {

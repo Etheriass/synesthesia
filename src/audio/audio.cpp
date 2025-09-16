@@ -3,43 +3,57 @@
 #include <string>
 #include <cstdint>
 #include <sys/wait.h>
-#include <chrono>
 #include <thread>
 
 #include "audio.h"
 #include "decoder.h"
-#include "player.h"
 #include "helpers.h"
 #include "spatial.h"
 #include "fourier.h"
+#include "player.h"
 
 #include "../shared_state.h"
 
-void audio_thread(mp3dec_t *dec, std::vector<uint8_t> audio_binary, int rate, SharedState *shared)
+
+#define MINIMP3_IMPLEMENTATION
+#define MINIMP3_ONLY_MP3
+#include "../../external/minimp3/minimp3.h"
+#include "../../external/minimp3/minimp3_ex.h"
+
+void audio_thread(const std::string path, SharedState *shared)
 {
+    std::vector<uint8_t> audio_binary = read_binary(path);
+
+    mp3dec_t dec;
+    mp3dec_init(&dec);
+    mp3dec_frame_info_t info{};
+    int samples = mp3dec_decode_frame(&dec, audio_binary.data(), (int)(audio_binary.size()), nullptr, &info);
+
+    if (info.channels < 2)
+    {
+        std::cerr << "Only stereo files are supported\n";
+    }
+
+    const int rate = info.hz;
+
+    int pipefd[2] = {-1, -1};
+
+    pid_t aplay_pid = start_aplay_process(info.hz, pipefd);
     size_t pos = 0;
     int16_t pcm[MINIMP3_MAX_SAMPLES_PER_FRAME]; // interleaved
-    mp3dec_frame_info_t info{};
 
     std::vector<float> left_ring, right_ring;              // rolling stereo
     std::vector<float> mid_ring;                           // Mid (used for STFT) rolling buffer
     std::vector<float> left_frame, right_frame, mid_frame; // per decoded frame
 
-    int pipefd[2] = {-1, -1}; // pipefd[0] for reading in child, pipefd[1] for writing PCM to child
-    pid_t child_pid = -1;
-
     size_t frame_idx = 0;
 
     // STFT parameters
-    const int N = 2 << 12; // window size (power of 2)
-    const int HOP = N / 2; // hop size (% overlap)
+    const int N = 2 << 13; // window size (power of 2)
+    const int HOP = N / 4; // hop size (% overlap)
     std::vector<double> hann(N);
     make_hann(hann);
     long long total_samples_mid = 0; // running index for timestamps
-
-    int samples = mp3dec_decode_frame(dec, audio_binary.data() + pos, (int)(audio_binary.size() - pos), pcm, &info);
-
-    start_aplay(rate, pipefd, child_pid);
 
     left_frame.resize(samples);
     right_frame.resize(samples);
@@ -49,11 +63,10 @@ void audio_thread(mp3dec_t *dec, std::vector<uint8_t> audio_binary, int rate, Sh
     std::vector<cd> X(N);
     std::vector<double> mag(Nh + 1);
     std::vector<double> mag_db(Nh + 1);
-    auto t_start = std::chrono::steady_clock::now();
 
     while (pos < audio_binary.size())
     {
-        samples = mp3dec_decode_frame(dec, audio_binary.data() + pos, (int)(audio_binary.size() - pos), pcm, &info);
+        samples = mp3dec_decode_frame(&dec, audio_binary.data() + pos, (int)(audio_binary.size() - pos), pcm, &info);
 
         // if (info.frame_bytes <= 0)
         // { // Not a valid frame here; advance minimally to resync
@@ -62,11 +75,6 @@ void audio_thread(mp3dec_t *dec, std::vector<uint8_t> audio_binary, int rate, Sh
         //     continue;
         // }
         pos += info.frame_bytes;
-
-        // // Print frame info + a few samples
-        // left_frame.resize(samples);
-        // right_frame.resize(samples);
-        // mid_frame.resize(samples);
 
         for (int i = 0; i < samples; ++i)
         {
@@ -140,14 +148,9 @@ void audio_thread(mp3dec_t *dec, std::vector<uint8_t> audio_binary, int rate, Sh
             }
 
             // Peak pick: top 10 peaks above -50 dB
-            auto peaks = peaks_selector(mag_db, -35, 1);
+            auto peaks = peaks_selector(mag_db, -50, 3);
             // std::cout << "Number of peaks found: " << peaks.size() << "\n";
 
-            // Print the peaks with sub-bin interpolation for better frequency est.
-            // std::printf("[t=%.3fs] STFT N=%d hop=%d  Top peaks:\n", t0, N, HOP);
-            auto end = std::chrono::steady_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - t_start);
-            printf("[t=%.3fs], t_s= %ldms\n", t0, duration.count());
             double fullness = 0.0;
             for (auto &[bin, db] : peaks)
             {
@@ -173,14 +176,14 @@ void audio_thread(mp3dec_t *dec, std::vector<uint8_t> audio_binary, int rate, Sh
                     if (uy > 0.9f)
                         uy = 0.9f;
                     // Radius from fullness (0.0..0.5)
-                    float radius = 0.02f + 0.06f * timbre.size() / 10.0f;
+                    float radius = 0.03f + 0.07f * timbre.size() / 10.0f;
                     // Falloff from width (0.8..2.0)
                     float falloff = 0.8f + 1.2f * fullness;
                     // Intensity from overall level (0.5..1.5)
                     double level_db = db;
                     float intensity = 0.5f + 1.0f * float(std::min(std::max(level_db + 40.0, 0.0), 40.0) / 40.0);
                     // std::cout << "  Circle: (" << ux << "," << uy << ") r=" << radius << " f=" << falloff << " I=" << intensity << "\n";
-                    add_circle_shared(shared, ux, uy, radius, falloff, intensity);
+                    add_circle_shared(shared, falloff / 2, uy, radius, falloff, intensity);
                 }
             }
 
@@ -201,7 +204,7 @@ void audio_thread(mp3dec_t *dec, std::vector<uint8_t> audio_binary, int rate, Sh
         }
 
         // Write PCM to child (if launched)
-        write_pcm_to_aplay(pipefd, pcm, samples);
+        write_pcm_to_pipe(pipefd, pcm, samples);
 
         frame_idx++;
     }
@@ -211,14 +214,13 @@ void audio_thread(mp3dec_t *dec, std::vector<uint8_t> audio_binary, int rate, Sh
         close(pipefd[1]);
 
     // Reap child
-    if (child_pid > 0)
+    if (aplay_pid > 0)
     {
         int status = 0;
-        waitpid(child_pid, &status, 0);
+        waitpid(aplay_pid, &status, 0);
         if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
         {
             std::fprintf(stderr, "aplay exited with status %d\n", WEXITSTATUS(status));
         }
     }
-    // aplay_thread_handle.join();
 }

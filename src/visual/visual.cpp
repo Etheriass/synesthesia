@@ -13,9 +13,6 @@ void visual_thread(SharedState *shared)
 {
     GLFWwindow *win = init_window();
 
-    // actual pwd
-    std::cout << std::filesystem::current_path() << std::endl;
-
     GLuint prog = LoadShaderProgram(
         "src/shaders/circle.vert",
         "src/shaders/circle.frag");

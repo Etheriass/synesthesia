@@ -16,7 +16,7 @@ std::vector<std::pair<int,double>> peaks_selector(const std::vector<double>& mag
     const int N = (int)mag.size();
     for (int i = 1; i < N - 1; ++i) {
         if (mag[i] > thresh) {
-            if (mag[i] > mag[i-1] && mag[i] >= mag[i+1]) {
+            if (mag[i] > mag[i-2] && mag[i] > mag[i-1] && mag[i] >= mag[i+1] && mag[i] >= mag[i+2]) {
                 peaks.emplace_back(i, mag[i]);
             }
         }
@@ -30,14 +30,14 @@ std::vector<std::pair<int,double>> peaks_selector(const std::vector<double>& mag
 std::vector<double> timbre_harmonics(const std::vector<double>& mag_db, double fundamental_freq, int sample_rate, int N) {
     std::vector<double> timbre;
     int h = 1;
-    while (timbre.empty() || (h <= 100 && timbre[h - 1] > -120.0)) {
+    while (timbre.empty() || (h <= 100 && timbre[h - 1] > -100.0)) {
         double target = h * fundamental_freq;
         int harmonic_bin = int(target / (sample_rate / N) + 0.5); // nearest bin
         if (harmonic_bin < (int)mag_db.size()) {
             double amp = mag_db[harmonic_bin];
             timbre.push_back(amp);
         } else {
-            timbre.push_back(-120.0); // treat as silence if out of range
+            timbre.push_back(-100.0); // treat as silence if out of range
         }
         h++;
     }
