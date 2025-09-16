@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 #include <fstream>
-#include <stdexcept>
 #include <cmath>
 #include <iostream>
 

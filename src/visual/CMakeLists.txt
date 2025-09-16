@@ -1,6 +1,4 @@
-add_library(visualizer_lib
-  visual.cpp
-)
+add_library(visualizer_lib visual.cpp)
 
 target_sources(visualizer_lib
   PUBLIC

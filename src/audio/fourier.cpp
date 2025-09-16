@@ -1,5 +1,3 @@
-#include <complex>
-#include <vector>
 #include <cmath>
 #include "fourier.h"
 

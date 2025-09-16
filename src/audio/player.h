@@ -1,12 +1,10 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include <unistd.h>
 #include <cstdio>
 #include <stdexcept>
 
-
-pid_t start_aplay_process(int rate, int pipefd[2])
+pid_t start_aplay_process(const int rate, int pipefd[2])
 {
     if (pipe(pipefd) == -1)
     {
@@ -58,7 +56,5 @@ pid_t start_aplay_process(int rate, int pipefd[2])
         return child_pid;
     }
 };
-
-
 
 #endif

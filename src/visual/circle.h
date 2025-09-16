@@ -1,8 +1,6 @@
 #ifndef CIRCLE_H
 #define CIRCLE_H
 
-#include <vector>
-
 struct Circle
 {
     float x, y;

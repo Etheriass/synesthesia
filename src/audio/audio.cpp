@@ -1,9 +1,7 @@
 #include <iostream>
 #include <vector>
-#include <string>
 #include <cstdint>
 #include <sys/wait.h>
-#include <thread>
 
 #include "audio.h"
 #include "decoder.h"
@@ -11,14 +9,31 @@
 #include "spatial.h"
 #include "fourier.h"
 #include "player.h"
-
 #include "../shared_state.h"
-
 
 #define MINIMP3_IMPLEMENTATION
 #define MINIMP3_ONLY_MP3
 #include "../../external/minimp3/minimp3.h"
 #include "../../external/minimp3/minimp3_ex.h"
+
+inline void write_pcm_to_pipe(int pipefd[2], int16_t *pcm, int samples)
+{
+    int channels = 2;
+    size_t bytes = (size_t)samples * channels * sizeof(int16_t);
+    const uint8_t *p = reinterpret_cast<const uint8_t *>(pcm);
+    while (bytes > 0)
+    {
+        ssize_t n = write(pipefd[1], p, bytes);
+        if (n < 0)
+        {
+            perror("write to aplay");
+            break;
+        }
+        p += n;
+        bytes -= (size_t)n;
+    }
+    return;
+}
 
 void audio_thread(const std::string path, SharedState *shared)
 {
@@ -33,36 +48,32 @@ void audio_thread(const std::string path, SharedState *shared)
     {
         std::cerr << "Only stereo files are supported\n";
     }
-
     const int rate = info.hz;
 
     int pipefd[2] = {-1, -1};
 
-    pid_t aplay_pid = start_aplay_process(info.hz, pipefd);
+    pid_t aplay_pid = start_aplay_process(rate, pipefd);
+
     size_t pos = 0;
+    size_t frame_idx = 0;
     int16_t pcm[MINIMP3_MAX_SAMPLES_PER_FRAME]; // interleaved
 
     std::vector<float> left_ring, right_ring;              // rolling stereo
     std::vector<float> mid_ring;                           // Mid (used for STFT) rolling buffer
-    std::vector<float> left_frame, right_frame, mid_frame; // per decoded frame
-
-    size_t frame_idx = 0;
+    std::vector<float> left_frame(samples), right_frame(samples), mid_frame(samples); // per decoded frame
 
     // STFT parameters
     const int N = 2 << 13; // window size (power of 2)
     const int HOP = N / 4; // hop size (% overlap)
     std::vector<double> hann(N);
     make_hann(hann);
-    long long total_samples_mid = 0; // running index for timestamps
-
-    left_frame.resize(samples);
-    right_frame.resize(samples);
-    mid_frame.resize(samples);
 
     int Nh = N / 2;
     std::vector<cd> X(N);
     std::vector<double> mag(Nh + 1);
     std::vector<double> mag_db(Nh + 1);
+
+    shared->running = true;
 
     while (pos < audio_binary.size())
     {
@@ -115,13 +126,8 @@ void audio_thread(const std::string path, SharedState *shared)
             // Azimuth estimate via simple model (ILD+ITD)
             double azimuth_deg = azimuth_from_ild_itd(ILD_dB, ITD_sec);
 
-            // Width via Mid/Side and correlation
+            // Width via Mid/Side
             double width_db = width_from_mid_side(Lw, Rw, N);
-            // double rho = pearson_corr(Lw, Rw, N);
-
-            double t0 = double(total_samples_mid) / double(rate);
-            // std::printf("[t=%.3fs] Azimuth≈%6.1f°  ITD=%6.2f ms  ILD=%6.2f dB  width=%5.1f dB  ρ=%+.2f\n",
-            //             t0, azimuth_deg, ITD_sec * 1000.0, ILD_dB, width_db, rho);
 
             // Window Mid
             for (int n = 0; n < N; ++n)
@@ -189,7 +195,6 @@ void audio_thread(const std::string path, SharedState *shared)
 
             // Advance
             processed += HOP;
-            total_samples_mid += HOP;
 
             // Drop consumed samples from rings (keep tail for overlap)
             mid_ring.erase(mid_ring.begin(), mid_ring.begin() + processed);
@@ -208,6 +213,7 @@ void audio_thread(const std::string path, SharedState *shared)
 
         frame_idx++;
     }
+    shared->running = false;
 
     // Close writer to signal EOF to aplay
     if (pipefd[1] != -1)
@@ -223,4 +229,5 @@ void audio_thread(const std::string path, SharedState *shared)
             std::fprintf(stderr, "aplay exited with status %d\n", WEXITSTATUS(status));
         }
     }
+    return;
 }

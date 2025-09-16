@@ -4,6 +4,7 @@
 #include <mutex>
 #include <atomic>
 #include <GLFW/glfw3.h>
+#include <vector>
 
 #include "visual/circle.h"
 

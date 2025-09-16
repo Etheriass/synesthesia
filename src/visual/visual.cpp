@@ -1,13 +1,10 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <iostream>
-#include <filesystem>
 
 #include "visual.h"
 #include "init.h"
 #include "loader.h"
 #include "circle.h"
-#include "../shared_state.h"
 
 void visual_thread(SharedState *shared)
 {
@@ -40,7 +37,7 @@ void visual_thread(SharedState *shared)
     double t0 = glfwGetTime();
 
     // Render loop
-    while (!glfwWindowShouldClose(win))
+    while (!glfwWindowShouldClose(win) && shared->running)
     {
         glfwPollEvents();
 
@@ -110,6 +107,7 @@ void visual_thread(SharedState *shared)
             glUniform1f(locDotRadius, dotRadius);
         if (count > 0)
         {
+            // std::this_thread::sleep_for(std::chrono::milliseconds(50));
             // upload vec2 array (count elements)
             glUniform2fv(locPos, count, posData.data());
             glUniform1fv(locAge, count, ageData.data());
@@ -134,7 +132,5 @@ void visual_thread(SharedState *shared)
 
     glfwDestroyWindow(win);
     glfwTerminate();
-    // signal flux thread to stop
-    shared->running = false;
 }
 
